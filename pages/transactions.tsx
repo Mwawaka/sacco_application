@@ -9,17 +9,36 @@ import {
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { DataFetch } from "../components/DataFetch";
+import { DataFetch, Transactions } from "../components/DataFetch";
+import TransactionModal from "../components/TransactionModal";
 import LoggedIn from "../layouts/LoggedIn";
 import transactionsService from "../src/graphql/services/transactionsService";
 import { RootState } from "../state/store";
 
-export default function Transactions() {
+export default function Transaction() {
   const userId = useSelector((state: RootState) => state.user.user._id);
   const [balance, setBalance] = useState<number>();
   const [more, SetMore] = useState<number>();
+  const [open, setOpen] = useState({
+    status: false,
+    type: "",
+  });
 
-  const { transactions, tx } = DataFetch(more);
+  const handleTransaction = (type: string) => {
+    setOpen({ status: true, type });
+  };
+  const [tx, setTx] = useState<Transactions[]>([]);
+  let transactions;
+  transactions = more ? tx.slice(0, more) : tx.slice(0, 5);
+  useEffect(() => {
+    const loadTx = async () => {
+      const TxRes = await transactionsService.getUserTransactions(userId);
+      setTx(TxRes.getUserTransactions);
+    };
+    loadTx();
+  }, [userId]);
+
+  // const { transactions, tx } = DataFetch(more);
   useEffect(() => {
     const fetchTransactions = async () => {
       const data = await transactionsService.getEscrow(userId);
@@ -30,6 +49,11 @@ export default function Transactions() {
   return (
     <LoggedIn header={"transactions"}>
       <Container>
+
+
+        {<TransactionModal open={open} setOpen={setOpen} />}
+
+
         <Center>
           <Text color="green" my={25}>
             Escrow Balance: Ksh {balance}
@@ -37,12 +61,20 @@ export default function Transactions() {
         </Center>
         <Center>
           <Container my={10}>
-            <Button variant="light" color="teal">
+            <Button
+              variant="light"
+              color="teal"
+              onClick={() => handleTransaction("deposit")}
+            >
               Deposit
             </Button>
           </Container>
           <Container>
-            <Button variant="light" color="teal">
+            <Button
+              variant="light"
+              color="teal"
+              onClick={() => handleTransaction("withdraw")}
+            >
               Withdraw
             </Button>
           </Container>
@@ -54,7 +86,7 @@ export default function Transactions() {
         </Text>
         <Stack>
           {transactions.map((tx) => (
-            <Paper key={tx.requestId} shadow="xl" radius="md" p="sm">
+            <Paper key={tx._id} shadow="xl" radius="md" p="sm">
               <Group position="apart">
                 <Text>{tx.type}</Text>
                 <Text>{tx.from}</Text>

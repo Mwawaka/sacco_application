@@ -3,11 +3,9 @@ import { useForm } from "@mantine/form";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useState } from "react";
-import { useDispatch } from "react-redux";
 import styled from "styled-components";
 import { Outcome } from "../components/Notifications";
 import userService from "../src/graphql/services/userService";
-import { loginUser } from "../state/userState";
 
 const AppContainer = styled.div`
   display: flex;
@@ -37,26 +35,32 @@ const Image = styled.img`
 `;
 
 const Register = () => {
-  const [email, setemail] = useState<string>("");
-  const [password, setpassword] = useState<string>("");
-  const dispatch = useDispatch();
-
   const [loading, SetLoading] = useState<boolean>(false);
   const router = useRouter();
+
   const handleRegister = async (values: typeof form.values) => {
+    const { confirmPassword, ...variable } = values;
     SetLoading(true);
     try {
-      const { createUser } = await userService.createUser(values);
-
-      Outcome(
-        "Registration Successfull",
-        `Hi ${createUser.user.firstName}, welcome aboard!`,
-        "green"
-      );
-      router.replace("/login");
+      const { createUser } = await userService.createUser(variable);
+      console.log(createUser);
+      if (createUser.errors !== null) {
+        Outcome(
+          "Registration Not Successfull",
+          createUser.errors.message,
+          "red"
+        );
+      } else {
+        Outcome(
+          "Registration Successfull",
+          `Hi ${createUser.user.firstName}, welcome aboard!`,
+          "green"
+        );
+        router.replace("/login");
+      }
     } catch (error) {
       console.log(error);
-      Outcome("Registration Not Successfull", "check your email", "red");
+      Outcome("Registration Not Successfull", "check your credentials", "red");
     }
     SetLoading(false);
   };

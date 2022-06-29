@@ -1,15 +1,6 @@
 import { useEffect, useState } from "react";
-import { PlusIcon } from "@radix-ui/react-icons";
 import {
-  AppShell,
-  Navbar,
-  Header,
-  Footer,
-  Aside,
   Text,
-  MediaQuery,
-  Burger,
-  useMantineTheme,
   Paper,
   Progress,
   Container,
@@ -19,17 +10,15 @@ import {
   Group,
 } from "@mantine/core";
 import styled from "styled-components";
-import { NextLink } from "@mantine/next";
-import Section from "../components/Section";
-// export const ThisText: Profile = {
-//   text: "Profile",
-//   followUp: "Log Out",
-//   owner: "Hi Satin",
-// };
 
 import LoggedIn from "../layouts/LoggedIn";
 
-import { DataFetch } from "../components/DataFetch";
+import { DataFetch, Transactions } from "../components/DataFetch";
+import { useSelector } from "react-redux";
+import { RootState } from "../state/store";
+import transactionsService from "../src/graphql/services/transactionsService";
+import { TotalSavings } from "./savings";
+import { TotalLoans } from "./loans";
 const UpContainer = styled.div`
   display: flex;
   justify-content: space-between;
@@ -42,19 +31,28 @@ const UpContainer = styled.div`
   }
 `;
 export default function Dashboard() {
-  const theme = useMantineTheme();
-  const [opened, setOpened] = useState(false);
 
-  const { myLoans, mySavings, totalLoans, totalSavings, transactions } =
-    DataFetch();
+  const [tx, setTx] = useState<Transactions[]>([]);
+  const userId = useSelector((state: RootState) => state.user.user._id);
 
-  const abc = [1, 2, 3];
+  let transactions;
+  transactions = tx.slice(0, 5);
+  useEffect(() => {
+    const getTx = async () => {
+      const TxRes = await transactionsService.getUserTransactions(userId);
+      setTx(TxRes.getUserTransactions);
+    };
+    getTx();
+  }, [userId]);
+  const { myLoans, mySavings } = DataFetch();
+
+
   return (
     <LoggedIn header={"dashboard"}>
       <Container>
         <Container>
           <UpContainer>
-            <Text>Savings: Ksh {totalSavings}</Text>
+            <Text>Savings: Ksh {TotalSavings}</Text>
             <Button variant="light" color="teal">
               {" "}
               View All
@@ -77,7 +75,7 @@ export default function Dashboard() {
         </Container>
         <Container>
           <UpContainer>
-            <Text>Loans: Ksh {totalLoans}</Text>
+            <Text>Loans: Ksh {TotalLoans}</Text>
             <Button variant="light" color="teal">
               {" "}
               View All
@@ -104,18 +102,24 @@ export default function Dashboard() {
               view all
             </Button>
           </UpContainer>
-          {transactions.map((transaction) => (
-            <Stack align="stretch" key={transaction.requestId}>
-              <Paper my={7} shadow="xl" radius="md" p="sm">
-                <Group position="apart">
-                  <Text>{transaction.type}</Text>
-                  <Text>{transaction.from}</Text>
-                  <Text>Ksh {transaction.amount}</Text>
-                  <Text>{transaction.status}</Text>
-                </Group>
-              </Paper>
-            </Stack>
-          ))}
+
+          {transactions.length > 0 ? (
+            transactions.map((transaction) => (
+              <Stack align="stretch" key={transaction._id}>
+                <Paper my={7} shadow="xl" radius="md" p="sm">
+                  <Group position="apart">
+                    <Text>{transaction.type}</Text>
+                    <Text>{transaction.from}</Text>
+                    <Text>Ksh {transaction.amount}</Text>
+                    <Text>{transaction.status}</Text>
+                  </Group>
+                </Paper>
+              </Stack>
+            ))
+          ) : (
+            <Center>No Transactions Yet</Center>
+          )}
+
         </Container>
       </Container>
     </LoggedIn>

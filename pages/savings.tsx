@@ -1,6 +1,5 @@
+import { gql, useMutation } from "@apollo/client";
 import {
-  AppShell,
-  Navbar,
   Center,
   Text,
   Container,
@@ -8,8 +7,6 @@ import {
   Button,
   Grid,
   Progress,
-  MediaQuery,
-  Aside,
   Paper,
   Modal,
   Stack,
@@ -18,17 +15,23 @@ import {
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { Outcome } from "../components/Notifications";
-import Section from "../components/Section";
 import LoggedIn from "../layouts/LoggedIn";
 import { getSavingsByUserId_getSavingsByUserId } from "../src/graphql/savings/__generated__/getSavingsByUserId";
 import savingsService from "../src/graphql/services/savingsService";
 import { RootState } from "../state/store";
+
+export let TotalSavings: number = 0;
 
 export default function Savings() {
   const [opened, setOpened] = useState<boolean>(false);
   const [addSavings, setAddSavings] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const userId = useSelector((state: RootState) => state.user.user._id);
+
+  const [load, setLoad] = useState<boolean>(false);
+
+  const [totSav, SetTotSav] = useState(0);
+
 
   const [amountAimed, setAmountAimed] = useState<number>(0);
   const [name, setName] = useState<string>("");
@@ -37,7 +40,7 @@ export default function Savings() {
   const [savings, setSavings] = useState<
     getSavingsByUserId_getSavingsByUserId[]
   >([]);
-
+  TotalSavings = totSav;
   const handleCreateSavingsAccount = async () => {
     setLoading(true);
     try {
@@ -59,15 +62,14 @@ export default function Savings() {
       const res = await savingsService.getSavingsByUserId(userId);
       const allSavings: getSavingsByUserId_getSavingsByUserId[] =
         res.data.getSavingsByUserId;
+
       setSavings(allSavings.filter((saving) => saving.name != "SACCO_SAVINGS"));
+      const resp = await savingsService.getTotalSavings();
+      SetTotSav(resp.data.getTotalSavings);
+
     };
     fetchSavings();
   }, [userId]);
-
-  const numbers = savings.map((saving) => saving.amountSaved);
-  const totalSavings =
-    numbers.length > 0 &&
-    numbers.reduce((accumulator, currentValue) => accumulator + currentValue);
 
   const AddToYourSavingAccount = async (savingsId: string, bankId: string) => {
     setLoading(true);
@@ -85,30 +87,42 @@ export default function Savings() {
     setLoading(false);
     setAddSavings(false);
   };
+  const findPercentage = (saving: any) => {
+    let p = saving.amountSaved / saving.amountAimed;
+    const target = p * 100;
+    if (target >= 100) {
+      return 100;
+    } else {
+      return Math.floor(target);
+    }
+  };
+  const [mutateFunction] = useMutation(WITHDRAW, {
+    onCompleted: (data) => {
+      setLoad(false);
+      setOpened(false);
+      if (data.transferSavingsToEscrow.error !== null) {
+        console.log(data);
+        Outcome(
+          "An error occured",
+          data.transferSavingsToEscrow.error.message,
+          "red"
+        );
+      } else {
+        Outcome("Success", data.transferSavingsToEscrow.message, "green");
+      }
+    },
+  });
+
+  const handleWithDraw = (id: string) => {
+    setLoad(true);
+    mutateFunction({
+      variables: {
+        input: id,
+      },
+    });
+  };
+
   return (
-    // <AppShell
-    //   padding="md"
-    //   navbar={
-    //     <Navbar width={{ base: 300 }} height={500} p="xs">
-    //       <Navbar
-    //         p="md"
-    //         hiddenBreakpoint="sm"
-    //         // hidden={!opened}
-    //         width={{ sm: 200, lg: 300 }}
-    //       >
-    //         <Section {...ThisText} />
-    //       </Navbar>
-    //     </Navbar>
-    //   }
-    //   styles={(theme) => ({
-    //     main: {
-    //       backgroundColor:
-    //         theme.colorScheme === "dark"
-    //           ? theme.colors.dark[8]
-    //           : theme.colors.gray[0],
-    //     },
-    //   })}
-    // >
     <LoggedIn header={"savings"}>
       <Modal
         opened={opened}
@@ -146,7 +160,7 @@ export default function Savings() {
       <Container>
         <Group position="apart">
           <Text color="green" my={25}>
-            Total Savings: KSH{totalSavings || 0}
+            Total Savings: KSH{totSav}
           </Text>
           <Button variant="light" color="teal" onClick={() => setOpened(true)}>
             New Savings Account
@@ -179,7 +193,12 @@ export default function Savings() {
 
                   <Text>Amount: Ksh {saving.amountSaved}</Text>
                   <Text>Target: Ksh {saving.amountAimed}</Text>
-                  <Progress label="50%" size="md" color="green" value={50} />
+                  <Progress
+                    label={`${findPercentage(saving)}%`}
+                    size="md"
+                    color="green"
+                    value={findPercentage(saving)}
+                  />
                 </Paper>
                 <Modal
                   opened={addSavings}
@@ -204,6 +223,14 @@ export default function Savings() {
                     >
                       Add Amount
                     </Button>
+                    <Button
+                      onClick={() => handleWithDraw(saving._id)}
+                      variant="light"
+                      color="teal"
+                      loading={load}
+                    >
+                      Withdraw
+                    </Button>
                   </Stack>
                 </Modal>
               </Grid.Col>
@@ -216,6 +243,17 @@ export default function Savings() {
         )}
       </Container>
     </LoggedIn>
-    // </AppShell>
   );
 }
+
+const WITHDRAW = gql`
+  mutation withdraw($input: String!) {
+    transferSavingsToEscrow(savingsId: $input) {
+      message
+      error {
+        error
+        message
+      }
+    }
+  }
+`;
